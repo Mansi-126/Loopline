@@ -38,18 +38,22 @@ struct ContentView: View {
                     .transition(.opacity)
             case .onboarding:
                 OnboardingView()
-                    .transition(.asymmetric(insertion: .move(edge: .trailing),
-                                            removal: .opacity))
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .opacity.combined(with: .scale(scale: 0.95))
+                    ))
             case .map:
                 LevelMapView()
                     .transition(.opacity.combined(with: .scale(scale: 0.97)))
             case .game(let level):
                 GameView(level: level)
-                    .transition(.asymmetric(insertion: .move(edge: .bottom),
-                                            removal: .opacity))
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .opacity.combined(with: .scale(scale: 0.95))
+                    ))
             case .result(let result):
                 ResultView(result: result)
-                    .transition(.opacity.combined(with: .scale(scale: 1.05)))
+                    .transition(.opacity.combined(with: .scale(scale: 1.03)))
             }
         }
         .task { await app.boot() }

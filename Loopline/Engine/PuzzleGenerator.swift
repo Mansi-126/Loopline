@@ -7,10 +7,15 @@
 
 import Foundation
 
-/// Generates Zip puzzles by carving a random Hamiltonian path through the
-/// grid (randomized DFS with a Warnsdorff-style heuristic — always try the
-/// most-constrained neighbor first, which makes generation near-instant
-/// even for 8×8), then dropping numbered waypoints along the path.
+/// Generates Zip puzzles by producing a random Hamiltonian path through the
+/// grid, then dropping numbered waypoints along the path.
+///
+/// The path is generated with the "backbite" algorithm: start from a simple
+/// boustrophedon (snake) path that already covers every cell, then repeatedly
+/// apply endpoint "bite" moves that reverse a prefix/suffix of the path. Every
+/// intermediate state is a valid Hamiltonian path, so generation runs in
+/// guaranteed linear time with no backtracking — unlike a DFS carve, which can
+/// stall for many seconds on odd-celled grids (5×5, 7×7, 9×9).
 enum PuzzleGenerator {
 
     static func generate(level: Level) -> Puzzle {
@@ -20,43 +25,45 @@ enum PuzzleGenerator {
         return Puzzle(size: level.size, solution: path, waypoints: waypoints)
     }
 
-    private static func hamiltonianPath(size: Int, rng: inout SeededRNG) -> [GridPoint] {
-        let total = size * size
-        // Start from a random edge cell — paths that start on edges look better.
-        var edges: [GridPoint] = []
-        for r in 0..<size { for c in 0..<size where r == 0 || c == 0 || r == size-1 || c == size-1 {
-            edges.append(GridPoint(row: r, col: c))
-        }}
-        while true {
-            let start = edges.randomElement(using: &rng)!
-            var visited = Set([start]), path = [start]
-            if extend(&path, &visited, size: size, total: total, rng: &rng) { return path }
+    private static func hamiltonianPath(size n: Int, rng: inout SeededRNG) -> [GridPoint] {
+        // Seed with a boustrophedon snake — a trivially valid Hamiltonian path.
+        var path: [GridPoint] = []
+        path.reserveCapacity(n * n)
+        for r in 0..<n {
+            let cols = r % 2 == 0 ? Array(0..<n) : Array((0..<n).reversed())
+            for c in cols { path.append(GridPoint(row: r, col: c)) }
         }
-    }
 
-    private static func extend(_ path: inout [GridPoint], _ visited: inout Set<GridPoint>,
-                               size: Int, total: Int, rng: inout SeededRNG,
-                               depthBudget: Int = 500_000) -> Bool {
-        var budget = depthBudget
-        func degree(_ p: GridPoint) -> Int {
-            neighbors(p, size).filter { !visited.contains($0) }.count
-        }
-        func recurse() -> Bool {
-            budget -= 1
-            if budget < 0 { return false }
-            if path.count == total { return true }
-            let current = path.last!
-            var options = neighbors(current, size).filter { !visited.contains($0) }
-            options.shuffle(using: &rng)
-            options.sort { degree($0) < degree($1) }   // Warnsdorff
-            for next in options {
-                path.append(next); visited.insert(next)
-                if recurse() { return true }
-                path.removeLast(); visited.remove(next)
+        // Track each cell's current position so we can locate a neighbor in O(1).
+        var pos: [GridPoint: Int] = [:]
+        for (i, p) in path.enumerated() { pos[p] = i }
+
+        // Mixing steps: proportional to area gives a well-scrambled path.
+        let moves = n * n * 10
+        for _ in 0..<moves {
+            let useHead = Bool.random(using: &rng)
+            let endpoint = useHead ? path[0] : path[path.count - 1]
+            let candidates = neighbors(endpoint, n).shuffled(using: &rng)
+
+            // Pick a neighbor that isn't already the endpoint's path-neighbor
+            // (biting into it would be a no-op).
+            guard let w = candidates.first(where: { neighbor in
+                let k = pos[neighbor]!
+                return useHead ? k != 1 : k != path.count - 2
+            }) else { continue }
+
+            let k = pos[w]!
+            if useHead {
+                // Reverse prefix [0..<k]; joins endpoint to its chosen neighbor.
+                path[0..<k].reverse()
+                for i in 0..<k { pos[path[i]] = i }
+            } else {
+                // Reverse suffix (k..<end].
+                path[(k + 1)...].reverse()
+                for i in (k + 1)..<path.count { pos[path[i]] = i }
             }
-            return false
         }
-        return recurse()
+        return path
     }
 
     private static func neighbors(_ p: GridPoint, _ size: Int) -> [GridPoint] {

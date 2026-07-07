@@ -62,7 +62,10 @@ struct ContentView: View {
 
 /// Animated logo mark: a path draws itself through a 3×3 grid.
 struct LaunchView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var drawn: CGFloat = 0
+    @State private var appeared = false
+    @State private var breathing = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -71,10 +74,30 @@ struct LaunchView: View {
             Text("Loopline")
                 .font(Theme.font(.title))
                 .foregroundStyle(Theme.ink)
-                .opacity(drawn)
         }
+        // Entrance: scale 0.85 -> 1.0 (spring) + fade in. Breathing pulse holds after.
+        .scaleEffect(reduceMotion ? 1 : (appeared ? 1.0 : 0.85))
+        .scaleEffect(reduceMotion ? 1 : (breathing ? 1.02 : 1.0))
+        .opacity(appeared ? 1 : 0)
         .onAppear {
-            withAnimation(.easeInOut(duration: 0.9)) { drawn = 1 }
+            if reduceMotion {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    appeared = true
+                    drawn = 1
+                }
+                return
+            }
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                appeared = true
+            }
+            // Vector path draw-on
+            withAnimation(.easeOut(duration: 0.6)) {
+                drawn = 1
+            }
+            // Subtle looping breathing pulse while the splash holds
+            withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
+                breathing = true
+            }
         }
     }
 }

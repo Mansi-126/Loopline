@@ -14,6 +14,7 @@ struct OnboardingView: View {
     @FocusState private var nameFocused: Bool
     @State private var pageAppeared = false
     @State private var emojiFloat = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -24,18 +25,12 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 TabView(selection: $page) {
                     OnboardPage(
-                        icon: { LogoMark(progress: 1).frame(width: 80, height: 80) },
+                        icon: { LineDrawDemo() },
                         title: "One line.\nEvery cell.",
-                        subtitle: "Draw a single path through every square, hitting the numbers in order."
+                        subtitle: "Draw a single path through every square, hitting the numbers in order.",
+                        isActive: page == 0
                     )
                     .tag(0)
-
-                    OnboardPage(
-                        icon: { DemoBoard() },
-                        title: "It's a race.",
-                        subtitle: "Every backtrack and hint counts. Solve clean, solve fast."
-                    )
-                    .tag(1)
 
                     OnboardPage(
                         icon: {
@@ -43,14 +38,15 @@ struct OnboardingView: View {
                                 .frame(width: 80, height: 80)
                         },
                         title: "Come back daily.",
-                        subtitle: "A new puzzle drops every 24 hours. Keep your streak alive."
+                        subtitle: "A new puzzle drops every 24 hours. Keep your streak alive.",
+                        isActive: page == 1
                     )
-                    .tag(2)
+                    .tag(1)
 
-                    namePage.tag(3)
+                    namePage.tag(2)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: page)
+                .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.5, dampingFraction: 0.8), value: page)
 
                 pageDots
                 primaryButton
@@ -68,13 +64,13 @@ struct OnboardingView: View {
             // Floating emoji avatar
             Text(app.profile.emoji)
                 .font(.system(size: 72))
-                .offset(y: emojiFloat ? -6 : 6)
+                .offset(y: reduceMotion ? 0 : (emojiFloat ? -4 : 4))
                 .shadow(color: Theme.accent.opacity(0.15), radius: 12, y: 8)
                 .animation(
-                    .easeInOut(duration: 2.2).repeatForever(autoreverses: true),
+                    reduceMotion ? nil : .easeInOut(duration: 2.5).repeatForever(autoreverses: true),
                     value: emojiFloat
                 )
-                .onAppear { emojiFloat = true }
+                .onAppear { if !reduceMotion { emojiFloat = true } }
 
             Text("What should we call you?")
                 .font(Theme.font(.title))
@@ -102,7 +98,7 @@ struct OnboardingView: View {
                             )
                     )
                     .cardShadow()
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: nameFocused)
+                    .animation(.easeOut(duration: 0.2), value: nameFocused)
 
                 Text("This shows on the leaderboard")
                     .font(Theme.font(.caption))
@@ -123,7 +119,7 @@ struct OnboardingView: View {
 
     private var pageDots: some View {
         HStack(spacing: 8) {
-            ForEach(0..<4, id: \.self) { i in
+            ForEach(0..<3, id: \.self) { i in
                 Capsule()
                     .fill(i == page ? Theme.accent : Theme.locked.opacity(0.6))
                     .frame(width: i == page ? 24 : 8, height: 8)
@@ -133,7 +129,7 @@ struct OnboardingView: View {
                     )
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: page)
+        .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.35, dampingFraction: 0.7), value: page)
         .padding(.bottom, 20)
     }
 
@@ -142,16 +138,16 @@ struct OnboardingView: View {
     private var primaryButton: some View {
         Button {
             Haptics.shared.waypoint()
-            if page < 3 {
+            if page < 2 {
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { page += 1 }
             } else {
                 app.completeOnboarding(name: name.isEmpty ? "Player" : name)
             }
         } label: {
             HStack(spacing: 8) {
-                Text(page < 3 ? "Continue" : "Let's zip")
+                Text(page < 2 ? "Continue" : "Let's zip")
                     .font(Theme.font(.headline))
-                if page == 3 {
+                if page == 2 {
                     Image(systemName: "arrow.right")
                         .font(.system(size: 14, weight: .bold))
                 }
@@ -192,8 +188,8 @@ struct OnboardingView: View {
         .buttonStyle(PressableButtonStyle())
         .padding(.horizontal, 24)
         .padding(.bottom, 24)
-        .disabled(page == 3 && name.trimmingCharacters(in: .whitespaces).isEmpty)
-        .opacity(page == 3 && name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.6 : 1)
+        .disabled(page == 2 && name.trimmingCharacters(in: .whitespaces).isEmpty)
+        .opacity(page == 2 && name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.6 : 1)
     }
 }
 
@@ -203,57 +199,167 @@ private struct OnboardPage<Icon: View>: View {
     @ViewBuilder let icon: Icon
     let title: String
     let subtitle: String
-    @State private var contentVisible = false
+    let isActive: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @State private var iconIn = false
+    @State private var titleIn = false
+    @State private var subtitleIn = false
 
     var body: some View {
         VStack(spacing: 28) {
             Spacer()
 
             icon
-                .opacity(contentVisible ? 1 : 0)
-                .scaleEffect(contentVisible ? 1 : 0.85)
-                .offset(y: contentVisible ? 0 : 15)
+                .opacity(iconIn ? 1 : 0)
+                .scaleEffect(reduceMotion ? 1 : (iconIn ? 1 : 0.6))
 
             Text(title)
                 .font(Theme.font(.display))
                 .foregroundStyle(Theme.ink)
                 .multilineTextAlignment(.center)
-                .opacity(contentVisible ? 1 : 0)
-                .offset(y: contentVisible ? 0 : 10)
+                .opacity(titleIn ? 1 : 0)
+                .offset(y: reduceMotion ? 0 : (titleIn ? 0 : 12))
 
             Text(subtitle)
                 .font(Theme.font(.body))
                 .foregroundStyle(Theme.inkSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 48)
-                .opacity(contentVisible ? 1 : 0)
-                .offset(y: contentVisible ? 0 : 8)
+                .opacity(subtitleIn ? 1 : 0)
+                .offset(y: reduceMotion ? 0 : (subtitleIn ? 0 : 10))
 
             Spacer()
         }
-        .onAppear {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
-                contentVisible = true
+        // Trigger off the active-selection binding so the entrance fires when the
+        // page actually becomes visible — not when TabView pre-renders it off-screen.
+        .onAppear { if isActive { animateIn() } }
+        .onChange(of: isActive) { _, active in
+            if active { animateIn() } else { resetIn() }
+        }
+    }
+
+    private func animateIn() {
+        guard !reduceMotion else {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                iconIn = true; titleIn = true; subtitleIn = true
             }
+            return
         }
-        .onDisappear {
-            contentVisible = false
+        // Staggered entrance: icon -> headline -> subtext (~100ms apart)
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.65)) {
+            iconIn = true
         }
+        withAnimation(.easeOut(duration: 0.4).delay(0.1)) {
+            titleIn = true
+        }
+        withAnimation(.easeOut(duration: 0.4).delay(0.2)) {
+            subtitleIn = true
+        }
+    }
+
+    private func resetIn() {
+        iconIn = false
+        titleIn = false
+        subtitleIn = false
     }
 }
 
-// MARK: - Demo Board (kept exactly as-is)
+// MARK: - Line Draw Demo
 
-struct DemoBoard: View {
-    @State private var t: CGFloat = 0
+/// Hero illustration for the first slide: a single continuous line draws itself
+/// through a 3×3 grid, hitting the numbered cells in order — then loops.
+struct LineDrawDemo: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let side: CGFloat = 132
+    /// Snake path through every cell, in solve order.
+    private let cells: [(Int, Int)] = [(0,0),(1,0),(2,0),(2,1),(1,1),(0,1),(0,2),(1,2),(2,2)]
+    /// Path index -> displayed number (start, middle, end).
+    private let numbered: [(index: Int, value: Int)] = [(0, 1), (4, 2), (8, 3)]
+    /// Seconds for one full flow (fill → hold → drain).
+    private let cycle: Double = 3.4
+
     var body: some View {
-        LogoMark(progress: t)
-            .frame(width: 100, height: 100)
-            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 20))
-            .cardShadow()
-            .onAppear {
-                withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) { t = 1 }
+        let cell = side / 3
+        let centers: [CGPoint] = cells.map {
+            CGPoint(x: CGFloat($0.0) * cell + cell / 2,
+                    y: CGFloat($0.1) * cell + cell / 2)
+        }
+        let lineWidth = cell * 0.30
+
+        ZStack {
+            // Grid cells
+            ForEach(0..<9, id: \.self) { i in
+                let c = i % 3, r = i / 3
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Theme.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Theme.boardLine, lineWidth: 1.5)
+                    )
+                    .frame(width: cell - 6, height: cell - 6)
+                    .position(x: CGFloat(c) * cell + cell / 2,
+                              y: CGFloat(r) * cell + cell / 2)
             }
+
+            // The zip line, continuously flowing through 1 → 2 → 3.
+            if reduceMotion {
+                lineCanvas(centers: centers, from: 0, to: 1, lineWidth: lineWidth)
+            } else {
+                TimelineView(.animation) { timeline in
+                    let span = trim(at: timeline.date)
+                    lineCanvas(centers: centers, from: span.0, to: span.1, lineWidth: lineWidth)
+                }
+            }
+
+            // Numbered target cells (static markers)
+            ForEach(numbered, id: \.index) { badge in
+                Text("\(badge.value)")
+                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(Theme.accent))
+                    .position(centers[badge.index])
+            }
+        }
+        .frame(width: side, height: side)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 20))
+        .cardShadow()
+    }
+
+    private func lineCanvas(centers: [CGPoint], from: CGFloat, to: CGFloat, lineWidth: CGFloat) -> some View {
+        Canvas { ctx, _ in
+            var path = Path()
+            path.move(to: centers[0])
+            centers.dropFirst().forEach { path.addLine(to: $0) }
+            ctx.stroke(
+                path.trimmedPath(from: from, to: to),
+                with: .color(Theme.accent),
+                style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
+            )
+        }
+        .frame(width: side, height: side)
+    }
+
+    /// Continuous loop: blank → head fills to full (1→2→3) → hold → tail drains → blank.
+    private func trim(at date: Date) -> (CGFloat, CGFloat) {
+        let p = date.timeIntervalSinceReferenceDate
+            .truncatingRemainder(dividingBy: cycle) / cycle   // 0...1
+        switch p {
+        case ..<0.55:                       // fill: head advances 0 → 1
+            return (0, ease(p / 0.55))
+        case ..<0.70:                       // hold on the full path
+            return (0, 1)
+        default:                            // drain: tail advances 0 → 1
+            return (ease((p - 0.70) / 0.30), 1)
+        }
+    }
+
+    /// Smoothstep for gentle ease-in / ease-out.
+    private func ease(_ x: Double) -> CGFloat {
+        let t = min(max(x, 0), 1)
+        return CGFloat(t * t * (3 - 2 * t))
     }
 }
 

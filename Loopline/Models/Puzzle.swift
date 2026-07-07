@@ -27,7 +27,7 @@ struct Puzzle {
     }
 }
 
-struct GameResult: Equatable {
+struct GameResult: Equatable, Codable {
     let level: Level
     let time: TimeInterval
     let backtracks: Int

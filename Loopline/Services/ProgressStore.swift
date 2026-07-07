@@ -31,4 +31,24 @@ struct ProgressStore {
     func loadProfile() -> Profile?  { load(Profile.self, key: "profile") }
     func loadProgress() -> Progress { load(Progress.self, key: "progress") ?? Progress() }
     func loadStreak() -> StreakState{ load(StreakState.self, key: "streak") ?? StreakState() }
+
+    // MARK: - Pending Solves (offline queue)
+
+    func addPendingSolve(_ result: GameResult) {
+        var pending = loadPendingSolves()
+        // Replace if same level already pending
+        pending.removeAll { $0.level.id == result.level.id }
+        pending.append(result)
+        save(pending, key: "pendingSolves")
+    }
+
+    func removePendingSolve(levelId: String) {
+        var pending = loadPendingSolves()
+        pending.removeAll { $0.level.id == levelId }
+        save(pending, key: "pendingSolves")
+    }
+
+    func loadPendingSolves() -> [GameResult] {
+        load([GameResult].self, key: "pendingSolves") ?? []
+    }
 }

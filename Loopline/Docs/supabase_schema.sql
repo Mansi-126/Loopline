@@ -27,14 +27,26 @@ create table public.solves (
   unique (user_id, level_id)          -- one entry per player per puzzle
 );
 
--- Leaderboard view: joins names, LinkedIn-style ordering.
-create view public.daily_leaderboard as
-  select s.user_id, s.level_id, p.display_name, p.emoji,
-         s.time_seconds, s.backtracks, s.hints_used
+-- Leaderboard view: joins names, LinkedIn-style ranking.
+-- Rank is computed by: fastest time → fewest backtracks → fewest hints.
+-- Includes created_at so the client can filter "today" vs "all time".
+create or replace view public.daily_leaderboard as
+  select
+    s.user_id,
+    s.level_id,
+    p.display_name,
+    p.emoji,
+    s.time_seconds,
+    s.backtracks,
+    s.hints_used,
+    s.created_at,
+    rank() over (
+      partition by s.level_id
+      order by s.time_seconds asc, s.backtracks asc, s.hints_used asc
+    )::int as rank
   from solves s
   join profiles p on p.id = s.user_id
-  where s.kind = 'daily'
-  order by s.time_seconds asc, s.backtracks asc, s.hints_used asc;
+  where s.kind = 'daily';
 
 -- Row Level Security
 alter table profiles enable row level security;

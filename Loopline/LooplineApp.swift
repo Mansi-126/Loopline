@@ -63,7 +63,15 @@ final class AppState: ObservableObject {
         withAnimation(.snappy(duration: 0.5)) {
             route = store.hasOnboarded ? .map : .onboarding
         }
-       profile = await supabase.signInIfNeeded(profile: profile)
+        // Auth with Supabase
+        profile = await supabase.signInIfNeeded(profile: profile)
+        store.save(profile: profile)
+
+        // Always upsert profile to Supabase after auth so it's in the DB
+        await supabase.upsertProfile(profile)
+
+        // Sync any pending solves that may have failed previously
+        await syncPendingSolves()
     }
 
     func completeOnboarding(name: String) {
@@ -74,6 +82,30 @@ final class AppState: ObservableObject {
         withAnimation(.snappy) { route = .map }
     }
 
+    func updateName(_ name: String) {
+        profile.displayName = name
+        store.save(profile: profile)
+        Task { await supabase.upsertProfile(profile) }
+    }
+
+    func updateEmoji(_ emoji: String) {
+        profile.emoji = emoji
+        store.save(profile: profile)
+        Task { await supabase.upsertProfile(profile) }
+    }
+
+    func resetProgress() {
+        progress = Progress()
+        streak = StreakState()
+        store.save(progress: progress)
+        store.save(streak: streak)
+    }
+
+    func syncToCloud() async {
+        await supabase.upsertProfile(profile)
+        await syncPendingSolves()
+    }
+
     func finish(result: GameResult) {
         progress.record(result: result)
         if result.level.kind == .daily {
@@ -81,7 +113,25 @@ final class AppState: ObservableObject {
             store.save(streak: streak)
         }
         store.save(progress: progress)
-        Task { await supabase.submit(result: result, profile: profile) }
+        // Save locally as pending, then try to submit
+        store.addPendingSolve(result)
+        Task {
+            let success = await supabase.submit(result: result, profile: profile)
+            if success {
+                store.removePendingSolve(levelId: result.level.id)
+            }
+        }
         withAnimation(.snappy) { route = .result(result) }
+    }
+
+    /// Retry uploading any solves that failed previously (e.g. was offline)
+    private func syncPendingSolves() async {
+        let pending = store.loadPendingSolves()
+        for solve in pending {
+            let success = await supabase.submit(result: solve, profile: profile)
+            if success {
+                store.removePendingSolve(levelId: solve.level.id)
+            }
+        }
     }
 }

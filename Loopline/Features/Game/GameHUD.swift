@@ -10,6 +10,7 @@ import SwiftUI
 struct GameHUD: View {
     @ObservedObject var engine: GameEngine
     let onExit: () -> Void
+    @AppStorage("showTimer") private var showTimer = true
 
     var body: some View {
         VStack(spacing: 14) {
@@ -42,24 +43,26 @@ struct GameHUD: View {
 
                 Spacer()
 
-                // 3D timer pill
-                ZStack {
-                    Capsule()
-                        .fill(Color(hex: 0xE8E4DD))
-                        .frame(height: 38)
-                        .offset(y: 3)
-                    Capsule()
-                        .fill(Theme.surface)
-                        .frame(height: 38)
-                    Text(engine.elapsed.clockString)
-                        .font(Theme.font(.mono))
-                        .foregroundStyle(Theme.ink)
-                        .contentTransition(.numericText())
-                        .animation(.snappy, value: Int(engine.elapsed))
-                }
-                .frame(width: 100)
+                // 3D timer pill (only if enabled)
+                if showTimer {
+                    ZStack {
+                        Capsule()
+                            .fill(Color(hex: 0xE8E4DD))
+                            .frame(height: 38)
+                            .offset(y: 3)
+                        Capsule()
+                            .fill(Theme.surface)
+                            .frame(height: 38)
+                        Text(engine.elapsed.clockString)
+                            .font(Theme.font(.mono))
+                            .foregroundStyle(Theme.ink)
+                            .contentTransition(.numericText())
+                            .animation(.snappy, value: Int(engine.elapsed))
+                    }
+                    .frame(width: 100)
 
-                Spacer()
+                    Spacer()
+                }
 
                 // Backtracks counter with depth
                 ZStack {

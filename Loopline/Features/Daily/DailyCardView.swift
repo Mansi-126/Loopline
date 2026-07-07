@@ -13,6 +13,7 @@ struct DailyCardView: View {
     @State private var now = Date()
     @State private var appeared = false
     @State private var playPulse = false
+    @State private var showLeaderboard = false
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -57,8 +58,24 @@ struct DailyCardView: View {
 
                     Spacer()
 
-                    // Status icon
-                    statusIcon
+                    // Status icon / Leaderboard button
+                    if app.streak.solvedToday {
+                        Button {
+                            showLeaderboard = true
+                        } label: {
+                            Image(systemName: "trophy.fill")
+                                .font(.system(size: 22))
+                                .foregroundStyle(Theme.gold)
+                                .frame(width: 40, height: 40)
+                                .background(
+                                    Circle()
+                                        .fill(Theme.gold.opacity(0.12))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        statusIcon
+                    }
                 }
 
                 // Weekly streak strip
@@ -123,6 +140,12 @@ struct DailyCardView: View {
             }
         }
         .buttonStyle(PressableButtonStyle())
+        .sheet(isPresented: $showLeaderboard) {
+            LeaderboardView(levelId: Level.daily().id, levelKind: .daily)
+                .environmentObject(app)
+                .presentationDetents([.large])
+                .presentationCornerRadius(28)
+        }
         .onReceive(timer) { now = $0 }
         .opacity(appeared ? 1 : 0)
         .offset(y: appeared ? 0 : 12)

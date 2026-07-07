@@ -18,6 +18,10 @@ final class Haptics {
     private let rigid = UIImpactFeedbackGenerator(style: .rigid)
     private let notify = UINotificationFeedbackGenerator()
 
+    private var isEnabled: Bool {
+        UserDefaults.standard.object(forKey: "hapticsEnabled") as? Bool ?? true
+    }
+
     private init() {
         engine = try? CHHapticEngine()
         try? engine?.start()
@@ -26,6 +30,7 @@ final class Haptics {
 
     /// progress ∈ 0...1 → intensity/sharpness ramps up as board fills.
     func pathTick(progress: Double) {
+        guard isEnabled else { return }
         guard let engine else { impact.impactOccurred(intensity: 0.6); return }
         let event = CHHapticEvent(eventType: .hapticTransient, parameters: [
             .init(parameterID: .hapticIntensity, value: Float(0.35 + 0.45 * progress)),
@@ -37,12 +42,13 @@ final class Haptics {
         }
     }
 
-    func waypoint()  { rigid.impactOccurred(intensity: 1.0) }
-    func backtrack() { impact.impactOccurred(intensity: 0.4) }
-    func error()     { notify.notificationOccurred(.error) }
+    func waypoint()  { guard isEnabled else { return }; rigid.impactOccurred(intensity: 1.0) }
+    func backtrack() { guard isEnabled else { return }; impact.impactOccurred(intensity: 0.4) }
+    func error()     { guard isEnabled else { return }; notify.notificationOccurred(.error) }
 
     /// Rising arpeggio of transients on win.
     func win() {
+        guard isEnabled else { return }
         guard let engine else { notify.notificationOccurred(.success); return }
         let events = (0..<5).map { i in
             CHHapticEvent(eventType: .hapticTransient, parameters: [

@@ -14,10 +14,16 @@ struct ResultView: View {
     @State private var showLeaderboard = false
     @State private var rankGlow: CGFloat = 0
     @State private var shimmerOffset: CGFloat = -200
+    @State private var myRankInfo: (rank: Int, totalPlayers: Int)?
+    @State private var rankLoading = true
 
-    // Simulated rank data (in production, fetched from backend)
-    private var playerRank: Int { max(1, 200 - result.score / 500) }
-    private var percentile: Int { min(99, max(1, result.score / 1000)) }
+    // Real rank from Supabase — falls back to nil if not yet loaded
+    private var playerRank: Int? { myRankInfo?.rank }
+    private var totalPlayers: Int { myRankInfo?.totalPlayers ?? 0 }
+    private var percentile: Int {
+        guard let info = myRankInfo, info.totalPlayers > 1 else { return 0 }
+        return max(1, Int(Double(info.totalPlayers - info.rank) / Double(info.totalPlayers) * 100))
+    }
 
     var body: some View {
         ZStack {
@@ -79,9 +85,16 @@ struct ResultView: View {
             closeButton
         }
         .sheet(isPresented: $showLeaderboard) {
-            LeaderboardView(myResult: result)
+            LeaderboardView(result: result)
                 .presentationDetents([.large])
                 .presentationCornerRadius(28)
+        }
+        .task {
+            // Fetch real rank from Supabase after the solve has been submitted
+            if result.level.kind == .daily {
+                myRankInfo = await app.supabase.fetchMyRank(userId: app.profile.id, levelId: result.level.id)
+            }
+            rankLoading = false
         }
         .onAppear { revealSequence() }
     }
@@ -145,54 +158,78 @@ struct ResultView: View {
 
     private var rankSection: some View {
         VStack(spacing: 10) {
-            // Rank number with golden glow
-            ZStack {
-                // Glow ring
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [Theme.gold.opacity(0.4 * rankGlow), .clear],
-                            center: .center,
-                            startRadius: 20,
-                            endRadius: 60
-                        )
-                    )
-                    .frame(width: 120, height: 120)
-
-                VStack(spacing: 2) {
-                    Text("#\(playerRank)")
-                        .font(.system(size: 44, weight: .heavy, design: .rounded))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [Theme.gold, Theme.accent],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+            if rankLoading {
+                ProgressView()
+                    .tint(Theme.gold)
+                    .scaleEffect(1.1)
+                    .padding(.vertical, 20)
+            } else if let rank = playerRank {
+                // Rank number with golden glow
+                ZStack {
+                    // Glow ring
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [Theme.gold.opacity(0.4 * rankGlow), .clear],
+                                center: .center,
+                                startRadius: 20,
+                                endRadius: 60
                             )
                         )
-                        .overlay(shimmerOverlay)
-                    Text("today")
+                        .frame(width: 120, height: 120)
+
+                    VStack(spacing: 2) {
+                        Text("#\(rank)")
+                            .font(.system(size: 44, weight: .heavy, design: .rounded))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [Theme.gold, Theme.accent],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .overlay(shimmerOverlay(rank: rank))
+                        Text("of \(totalPlayers) players today")
+                            .font(Theme.font(.caption))
+                            .foregroundStyle(Theme.inkSecondary)
+                    }
+                }
+
+                // Percentile line
+                if percentile > 0 {
+                    Text("Faster than **\(percentile)%** of players")
+                        .font(Theme.font(.body))
+                        .foregroundStyle(Theme.ink)
+                }
+
+                // Score pill
+                HStack(spacing: 6) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.gold)
+                    Text("\(result.score) pts")
                         .font(Theme.font(.caption))
                         .foregroundStyle(Theme.inkSecondary)
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(Theme.gold.opacity(0.1), in: Capsule())
+            } else {
+                // No rank yet (submission may have failed)
+                VStack(spacing: 8) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.gold)
+                        Text("\(result.score) pts")
+                            .font(Theme.font(.caption))
+                            .foregroundStyle(Theme.inkSecondary)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(Theme.gold.opacity(0.1), in: Capsule())
+                }
             }
-
-            // Percentile line
-            Text("Faster than **\(percentile)%** of players")
-                .font(Theme.font(.body))
-                .foregroundStyle(Theme.ink)
-
-            // Score pill
-            HStack(spacing: 6) {
-                Image(systemName: "star.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.gold)
-                Text("\(result.score) pts")
-                    .font(Theme.font(.caption))
-                    .foregroundStyle(Theme.inkSecondary)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 6)
-            .background(Theme.gold.opacity(0.1), in: Capsule())
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
@@ -202,7 +239,7 @@ struct ResultView: View {
     }
 
     // Shimmer overlay on rank
-    private var shimmerOverlay: some View {
+    private func shimmerOverlay(rank: Int) -> some View {
         GeometryReader { geo in
             LinearGradient(
                 colors: [.clear, .white.opacity(0.4), .clear],
@@ -218,7 +255,7 @@ struct ResultView: View {
             }
         }
         .mask(
-            Text("#\(playerRank)")
+            Text("#\(rank)")
                 .font(.system(size: 44, weight: .heavy, design: .rounded))
         )
     }
@@ -318,43 +355,6 @@ struct ResultView: View {
                 .buttonStyle(PressableButtonStyle())
             }
 
-            // Share Result button (3D secondary)
-            Button {
-                shareResult()
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 16, weight: .semibold))
-                    Text("Share Result")
-                        .font(Theme.font(.headline))
-                }
-                .foregroundStyle(Theme.ink)
-                .frame(maxWidth: .infinity)
-                .frame(height: 56)
-                .background(
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 18)
-                            .fill(Color(hex: 0xE8E4DD))
-                            .offset(y: 4)
-                        RoundedRectangle(cornerRadius: 18)
-                            .fill(Theme.surface)
-                        RoundedRectangle(cornerRadius: 18)
-                            .fill(
-                                LinearGradient(
-                                    colors: [.white.opacity(0.5), .clear],
-                                    startPoint: .top, endPoint: .center
-                                )
-                            )
-                    }
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .stroke(Theme.boardLine, lineWidth: 1.5)
-                )
-                .shadow(color: .black.opacity(0.06), radius: 6, y: 4)
-            }
-            .buttonStyle(PressableButtonStyle())
-
             // Next Puzzle / Continue button (3D primary)
             Button {
                 withAnimation(.snappy) { app.route = .map }
@@ -403,21 +403,6 @@ struct ResultView: View {
             ) {
                 revealed = step
             }
-        }
-    }
-
-    private func shareResult() {
-        let text = """
-        🧩 Loopline \(result.level.kind == .daily ? "Daily" : "Level \(result.level.index)")
-        ⏱ \(result.time.clockString)
-        ↩︎ \(result.backtracks) backtracks
-        💡 \(result.hintsUsed) hints
-        ⭐️ Score: \(result.score)
-        """
-        let av = UIActivityViewController(activityItems: [text], applicationActivities: nil)
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let root = windowScene.windows.first?.rootViewController {
-            root.present(av, animated: true)
         }
     }
 }

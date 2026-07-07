@@ -23,17 +23,18 @@ struct LevelMapView: View {
     @State private var showAvatar = false
     @State private var nodeCenters: [Int: CGPoint] = [:]
     @State private var lastSeenLevel: Int = 0
+    @State private var showProfile = false
     private let totalLevels = Level.campaignCount
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
-                    // Level path (daily card is pinned above, outside the scroll)
-                    levelPath
-                        .padding(.top, 8)
-
                     Spacer(minLength: 100)
+
+                    // Level path (levels laid out bottom-to-top: level 1 at bottom)
+                    levelPath
+                        .padding(.bottom, 8)
                 }
             }
             .onAppear {
@@ -41,20 +42,25 @@ struct LevelMapView: View {
                     showAvatar = true
                 }
                 let current = app.progress.highestUnlocked
-                if lastSeenLevel == 0 || current != lastSeenLevel {
-                    // First open or level just completed — scroll to current level
+                if lastSeenLevel == 0 {
+                    // First open — jump to current level instantly (no animation)
                     lastSeenLevel = current
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        withAnimation(.easeInOut(duration: 0.6)) {
-                            proxy.scrollTo(current, anchor: .center)
-                        }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        proxy.scrollTo(current, anchor: .center)
                     }
+                } else {
+                    lastSeenLevel = current
                 }
-                // Otherwise, map stays where user left it (e.g. returning from daily)
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) { topBar }
         .background(mapBackground)
+        .sheet(isPresented: $showProfile) {
+            ProfileView()
+                .environmentObject(app)
+                .presentationDetents([.medium, .large])
+                .presentationCornerRadius(28)
+        }
     }
 
     // MARK: - Pinned Top Bar (header + daily challenge)
@@ -94,6 +100,29 @@ struct LevelMapView: View {
 
     private var header: some View {
         HStack {
+            // Profile button
+            Button {
+                showProfile = true
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: 0xE8E4DD))
+                        .frame(width: 38, height: 38)
+                        .offset(y: 2)
+                    Circle()
+                        .fill(Theme.surface)
+                        .frame(width: 38, height: 38)
+                        .overlay(
+                            Circle()
+                                .stroke(Theme.accent.opacity(0.4), lineWidth: 1.5)
+                        )
+                    Text(app.profile.emoji)
+                        .font(.system(size: 18))
+                }
+                .shadow(color: .black.opacity(0.06), radius: 3, y: 2)
+            }
+            .buttonStyle(PressableButtonStyle())
+
             VStack(alignment: .leading, spacing: 2) {
                 Text("Loopline")
                     .font(Theme.font(.title))
@@ -162,9 +191,9 @@ struct LevelMapView: View {
                 highestUnlocked: app.progress.highestUnlocked
             )
 
-            // Level nodes
+            // Level nodes (reversed: highest at top, level 1 at bottom)
             VStack(spacing: 0) {
-                ForEach(1...totalLevels, id: \.self) { i in
+                ForEach((1...totalLevels).reversed(), id: \.self) { i in
                     let isMilestone = i % 5 == 0
                     let xOffset = sin(Double(i) * 0.85) * 85
 

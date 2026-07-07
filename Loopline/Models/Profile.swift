@@ -30,10 +30,12 @@ struct LeaderboardEntry: Identifiable, Decodable {
     let timeSeconds: Double
     let backtracks: Int
     let hintsUsed: Int
-    var rank: Int = 0
+    let rank: Int
+    let createdAt: String?
 
     enum CodingKeys: String, CodingKey {
         case id = "user_id", displayName = "display_name", emoji,
-             timeSeconds = "time_seconds", backtracks, hintsUsed = "hints_used"
+             timeSeconds = "time_seconds", backtracks, hintsUsed = "hints_used",
+             rank, createdAt = "created_at"
     }
 }

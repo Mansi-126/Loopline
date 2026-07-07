@@ -134,9 +134,14 @@ struct LevelNodeView: View {
     private var nodeContent: some View {
         switch state {
         case .locked:
-            Image(systemName: "lock.fill")
-                .font(.system(size: isMilestone ? 22 : 18, weight: .bold))
-                .foregroundStyle(.white.opacity(0.6))
+            VStack(spacing: 2) {
+                Text("\(level.index)")
+                    .font(.system(size: isMilestone ? 20 : 22, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.5))
+                Image(systemName: "lock.fill")
+                    .font(.system(size: isMilestone ? 12 : 10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.4))
+            }
 
         case .current:
             if isMilestone {
@@ -160,15 +165,15 @@ struct LevelNodeView: View {
             if isMilestone {
                 VStack(spacing: 2) {
                     Image(systemName: "star.fill")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(.white.opacity(0.9))
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 16, weight: .heavy))
+                    Text("\(level.index)")
+                        .font(.system(size: 16, weight: .heavy, design: .rounded))
                         .foregroundStyle(.white)
                 }
             } else {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 20, weight: .heavy))
+                Text("\(level.index)")
+                    .font(.system(size: 22, weight: .heavy, design: .rounded))
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.2), radius: 1, y: 1)
             }

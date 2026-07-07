@@ -98,26 +98,73 @@ final class GameEngine: ObservableObject {
         Haptics.shared.backtrack()
     }
 
+    /// Tap a waypoint number to clear the path from that waypoint onward.
+    /// If it's waypoint 1 (the start), reset entirely.
+    func tapWaypoint(at cell: GridPoint) {
+        guard !isSolved else { return }
+        guard let wpNumber = puzzle.waypointNumber(at: cell) else { return }
+        // Only act on waypoints already in the path
+        guard pathSet.contains(cell) else { return }
+
+        if wpNumber == 1 {
+            // Tapping waypoint 1 restarts the puzzle
+            let removed = path.count - 1
+            reset()
+            backtracks += removed
+            Haptics.shared.backtrack()
+        } else {
+            // Clear path from this waypoint onward (keep everything before it)
+            guard let idx = path.firstIndex(of: cell) else { return }
+            let removed = path.count - idx
+            path.removeLast(removed)
+            pathSet = Set(path)
+            backtracks += removed
+            Haptics.shared.backtrack()
+        }
+    }
+
     // MARK: - Hints
 
-    /// Flash the next few solution cells the player should take.
+    /// Flash the next correct cell the player should move to.
+    /// If the player has diverged from the solution, rewind to the last
+    /// correct position first, then show the next correct step.
     func useHint() {
         guard !isSolved else { return }
         hintsUsed += 1
-        // Find the longest prefix of the solution matching the current path
-        // head, then reveal the next correct cell.
-        if let headIdx = puzzle.solution.firstIndex(of: path.last!),
-           headIdx + 1 < puzzle.solution.count {
-            // Verify player's path is on-track from the start; otherwise hint = start over cue
-            hintFlash = puzzle.solution[headIdx + 1]
-        } else {
-            hintFlash = puzzle.solution[path.count]
+
+        // Find the longest prefix of the player's path that matches the solution exactly.
+        let matchLen = longestMatchingPrefix()
+
+        if matchLen < path.count {
+            // Player has diverged — rewind to the last correct cell
+            let removed = path.count - matchLen
+            path.removeLast(removed)
+            pathSet = Set(path)
+            backtracks += removed
         }
+
+        // Now path[0..<matchLen] matches solution[0..<matchLen].
+        // Show the next correct cell from the solution.
+        if matchLen < puzzle.solution.count {
+            hintFlash = puzzle.solution[matchLen]
+        }
+
         Haptics.shared.waypoint()
         Task {
             try? await Task.sleep(for: .seconds(1.6))
             withAnimation(.easeOut(duration: 0.4)) { self.hintFlash = nil }
         }
+    }
+
+    /// Returns the length of the longest prefix where path matches solution exactly.
+    private func longestMatchingPrefix() -> Int {
+        let limit = min(path.count, puzzle.solution.count)
+        for i in 0..<limit {
+            if path[i] != puzzle.solution[i] {
+                return i
+            }
+        }
+        return limit
     }
 
     // MARK: - Private

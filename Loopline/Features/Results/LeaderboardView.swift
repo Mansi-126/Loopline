@@ -9,11 +9,28 @@ import SwiftUI
 
 struct LeaderboardView: View {
     @EnvironmentObject private var app: AppState
-    let myResult: GameResult
+    let levelId: String
+    let levelKind: Level.Kind
+    let myTime: TimeInterval?
     @State private var entries: [LeaderboardEntry] = []
     @State private var loading = true
     @State private var selectedFilter: LeaderboardFilter = .today
     @State private var rowsVisible = false
+    @State private var myRankInfo: (rank: Int, totalPlayers: Int)?
+
+    /// Convenience init from a GameResult (used from ResultView)
+    init(result: GameResult) {
+        self.levelId = result.level.id
+        self.levelKind = result.level.kind
+        self.myTime = result.time
+    }
+
+    /// Standalone init with just a level ID (used from DailyCardView)
+    init(levelId: String, levelKind: Level.Kind = .daily) {
+        self.levelId = levelId
+        self.levelKind = levelKind
+        self.myTime = nil
+    }
 
     enum LeaderboardFilter: String, CaseIterable {
         case today = "Today"
@@ -82,17 +99,28 @@ struct LeaderboardView: View {
                 }
             }
 
-            // Pinned player row (if not in visible top)
-            if !loading && !isMyEntryInTop10 && myEntry == nil {
-                pinnedPlayerRow
+            // Pinned player row (if not in visible top 10)
+            if !loading, let entry = myEntry, !isMyEntryInTop10 {
+                pinnedPlayerRow(entry: entry)
+            } else if !loading && myEntry == nil && myRankInfo != nil {
+                // Player solved but not in top 100 fetched entries
+                pinnedPlayerRowFromRank
             }
         }
         .background(Theme.background)
-        .task {
-            entries = await app.supabase.fetchDailyLeaderboard(levelId: myResult.level.id)
-            withAnimation(.snappy) { loading = false }
-            withAnimation(.easeOut(duration: 0.3).delay(0.2)) { rowsVisible = true }
+        .task { await loadLeaderboard() }
+        .onChange(of: selectedFilter) { _ in
+            Task { await loadLeaderboard() }
         }
+    }
+
+    private func loadLeaderboard() async {
+        withAnimation(.snappy) { loading = true; rowsVisible = false }
+        let todayOnly = selectedFilter == .today
+        entries = await app.supabase.fetchDailyLeaderboard(levelId: levelId, todayOnly: todayOnly)
+        myRankInfo = await app.supabase.fetchMyRank(userId: app.profile.id, levelId: levelId)
+        withAnimation(.snappy) { loading = false }
+        withAnimation(.easeOut(duration: 0.3).delay(0.2)) { rowsVisible = true }
     }
 
     // MARK: - Header
@@ -108,7 +136,7 @@ struct LeaderboardView: View {
                     .foregroundStyle(Theme.ink)
             }
 
-            if myResult.level.kind == .daily {
+            if levelKind == .daily {
                 Text("Daily Challenge")
                     .font(Theme.font(.caption))
                     .foregroundStyle(.white)
@@ -254,23 +282,75 @@ struct LeaderboardView: View {
 
     // MARK: - Pinned Player Row
 
-    private var pinnedPlayerRow: some View {
+    private func pinnedPlayerRow(entry: LeaderboardEntry) -> some View {
         VStack(spacing: 0) {
             Divider().background(Theme.boardLine)
             HStack(spacing: 14) {
-                Text("You")
-                    .font(Theme.font(.caption))
-                    .foregroundStyle(Theme.inkSecondary)
-                Spacer()
-                Text(app.profile.emoji)
+                Text("#\(entry.rank)")
+                    .font(Theme.font(.headline))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 40)
+
+                Text(entry.emoji)
                     .font(.system(size: 20))
-                Text(app.profile.displayName)
-                    .font(Theme.font(.body))
-                    .foregroundStyle(Theme.ink)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.displayName + " (you)")
+                        .font(Theme.font(.body))
+                        .foregroundStyle(Theme.ink)
+                        .lineLimit(1)
+                    if let info = myRankInfo {
+                        Text("Out of \(info.totalPlayers) players")
+                            .font(Theme.font(.caption))
+                            .foregroundStyle(Theme.inkSecondary)
+                    }
+                }
+
                 Spacer()
-                Text(myResult.time.clockString)
+
+                Text(TimeInterval(entry.timeSeconds).clockString)
                     .font(.system(size: 15, weight: .bold, design: .monospaced))
                     .foregroundStyle(Theme.ink)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            .background(Theme.accentSoft)
+        }
+    }
+
+    private var pinnedPlayerRowFromRank: some View {
+        VStack(spacing: 0) {
+            Divider().background(Theme.boardLine)
+            HStack(spacing: 14) {
+                if let info = myRankInfo {
+                    Text("#\(info.rank)")
+                        .font(Theme.font(.headline))
+                        .foregroundStyle(Theme.accent)
+                        .frame(width: 40)
+                }
+
+                Text(app.profile.emoji)
+                    .font(.system(size: 20))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(app.profile.displayName + " (you)")
+                        .font(Theme.font(.body))
+                        .foregroundStyle(Theme.ink)
+                        .lineLimit(1)
+                    if let info = myRankInfo {
+                        Text("Out of \(info.totalPlayers) players")
+                            .font(Theme.font(.caption))
+                            .foregroundStyle(Theme.inkSecondary)
+                    }
+                }
+
+                Spacer()
+
+                if let time = myTime {
+                    Text(time.clockString)
+                        .font(.system(size: 15, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Theme.ink)
+                }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 14)

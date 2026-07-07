@@ -172,7 +172,11 @@ struct BoardView: View {
             .scaleEffect(visited ? 1.05 : 1.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.55), value: visited)
             .position(center(pt, cell))
-            .allowsHitTesting(false)
+            .onTapGesture {
+                if visited {
+                    engine.tapWaypoint(at: pt)
+                }
+            }
         }
     }
 

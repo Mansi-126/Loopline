@@ -270,7 +270,16 @@ private struct OnboardPage<Icon: View>: View {
 /// Hero illustration for the first slide: a single continuous line draws itself
 /// through a 3×3 grid, hitting the numbered cells in order — then loops.
 struct LineDrawDemo: View {
+    /// When true the line flows forever (fill → hold → drain → repeat).
+    /// When false it draws once through 1 → 2 → 3 and stays full.
+    var loops: Bool = true
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Wall-clock moment the view appeared. The flow is measured relative to this
+    /// so the draw always starts from blank (0) the instant the view is shown,
+    /// rather than picking up mid-cycle off the absolute clock.
+    @State private var startDate = Date()
 
     private let side: CGFloat = 132
     /// Snake path through every cell, in solve order.
@@ -326,6 +335,7 @@ struct LineDrawDemo: View {
         .frame(width: side, height: side)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 20))
         .cardShadow()
+        .onAppear { startDate = Date() }
     }
 
     private func lineCanvas(centers: [CGPoint], from: CGFloat, to: CGFloat, lineWidth: CGFloat) -> some View {
@@ -344,7 +354,16 @@ struct LineDrawDemo: View {
 
     /// Continuous loop: blank → head fills to full (1→2→3) → hold → tail drains → blank.
     private func trim(at date: Date) -> (CGFloat, CGFloat) {
-        let p = date.timeIntervalSinceReferenceDate
+        let elapsed = max(0, date.timeIntervalSince(startDate))
+
+        // Play once: fill 0 → 1 over the fill window, then hold full forever.
+        if !loops {
+            let fillDuration = cycle * 0.55 / 1.5   // 1.5x faster draw for the splash
+            let p = min(elapsed / fillDuration, 1)
+            return (0, ease(p))
+        }
+
+        let p = elapsed
             .truncatingRemainder(dividingBy: cycle) / cycle   // 0...1
         switch p {
         case ..<0.55:                       // fill: head advances 0 → 1

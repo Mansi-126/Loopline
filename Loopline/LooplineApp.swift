@@ -59,7 +59,9 @@ final class AppState: ObservableObject {
     }
 
     func boot() async {
-        try? await Task.sleep(for: .seconds(1.2)) // launch animation beat
+        // Move on as soon as the zip line finishes drawing 1 → 2 → 3
+        // (1.5x-speed draw fills by ~1.25s), then open the home screen.
+        try? await Task.sleep(for: .seconds(1.3)) // launch animation beat
         withAnimation(.snappy(duration: 0.5)) {
             route = store.hasOnboarded ? .map : .onboarding
         }

@@ -48,8 +48,9 @@ final class GameEngine: ObservableObject {
     }
 
     func reset() {
-        path = [puzzle.waypoints[0]]
-        pathSet = [puzzle.waypoints[0]]
+        guard let startWaypoint = puzzle.waypoints.first else { return }
+        path = [startWaypoint]
+        pathSet = [startWaypoint]
         isSolved = false
     }
 
@@ -189,7 +190,8 @@ final class GameEngine: ObservableObject {
     private func checkWin() {
         guard path.count == puzzle.cellCount else { return }
         // All cells filled + last waypoint must be the final number.
-        guard puzzle.waypointNumber(at: path.last!) == puzzle.waypoints.count else { return }
+        guard let lastCell = path.last,
+              puzzle.waypointNumber(at: lastCell) == puzzle.waypoints.count else { return }
         isSolved = true
         timer?.cancel()
         Haptics.shared.win()

@@ -48,11 +48,11 @@ enum PuzzleGenerator {
             // Pick a neighbor that isn't already the endpoint's path-neighbor
             // (biting into it would be a no-op).
             guard let w = candidates.first(where: { neighbor in
-                let k = pos[neighbor]!
+                guard let k = pos[neighbor] else { return false }
                 return useHead ? k != 1 : k != path.count - 2
             }) else { continue }
 
-            let k = pos[w]!
+            guard let k = pos[w] else { continue }
             if useHead {
                 // Reverse prefix [0..<k]; joins endpoint to its chosen neighbor.
                 path[0..<k].reverse()
@@ -77,7 +77,10 @@ enum PuzzleGenerator {
     /// jitter so numbers never bunch up (uneven spacing = feels handcrafted).
     private static func placeWaypoints(on path: [GridPoint], count: Int,
                                        rng: inout SeededRNG) -> [GridPoint] {
-        guard count >= 2 else { return [path.first!, path.last!] }
+        guard !path.isEmpty else { return [] }
+        guard count >= 2 else {
+            return [path[0], path[path.count - 1]]
+        }
         var indices: Set<Int> = [0, path.count - 1]
         let segment = Double(path.count - 1) / Double(count - 1)
         for i in 1..<(count - 1) {
@@ -85,8 +88,11 @@ enum PuzzleGenerator {
             let jitter = Double.random(in: -segment/3...segment/3, using: &rng)
             var idx = Int((base + jitter).rounded())
             idx = max(1, min(path.count - 2, idx))
-            while indices.contains(idx) { idx += 1 }
-            indices.insert(idx)
+            // Advance to next available slot, but stay within bounds
+            while indices.contains(idx) && idx < path.count - 1 { idx += 1 }
+            if idx < path.count - 1 {
+                indices.insert(idx)
+            }
         }
         return indices.sorted().map { path[$0] }
     }

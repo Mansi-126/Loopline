@@ -14,8 +14,8 @@ actor SupabaseService {
     static let shared = SupabaseService()
 
     private let client = SupabaseClient(
-        supabaseURL: URL(string: "https://ohyrmnrhuxdasyfrhidm.supabase.co")!,
-        supabaseKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9oeXJtbnJodXhkYXN5ZnJoaWRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwODc0OTUsImV4cCI6MjA5ODY2MzQ5NX0.fKY_g_sbGG6g0NoIM-IsIntiwfGq5d5O6xCSm6Knx9I"
+        supabaseURL: AppConfig.supabaseURL,
+        supabaseKey: AppConfig.supabaseAnonKey
     )
 
     func signInIfNeeded(profile: Profile) async -> Profile {

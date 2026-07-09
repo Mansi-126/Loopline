@@ -53,9 +53,9 @@ final class AppState: ObservableObject {
     }
 
     init() {
-        profile = ProgressStore().loadProfile() ?? Profile.anonymous()
-        progress = ProgressStore().loadProgress()
-        streak = StreakManager.evaluate(ProgressStore().loadStreak())
+        profile = store.loadProfile() ?? Profile.anonymous()
+        progress = store.loadProgress()
+        streak = StreakManager.evaluate(store.loadStreak())
     }
 
     func boot() async {

@@ -7,6 +7,10 @@ DerivedData/
 
 # macOS
 .DS_Store
+
+# Secrets — never commit credentials
+Loopline/Services/Secrets.swift
+Loopline/Secrets.xcconfig
 *.swp
 *~
 

@@ -109,7 +109,7 @@ struct LeaderboardView: View {
         }
         .background(Theme.background)
         .task { await loadLeaderboard() }
-        .onChange(of: selectedFilter) { _ in
+        .onChange(of: selectedFilter) { _, _ in
             Task { await loadLeaderboard() }
         }
     }

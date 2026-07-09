@@ -23,8 +23,11 @@ struct SeededRNG: RandomNumberGenerator {
 
     static func dailySeed(for date: Date = .now) -> UInt64 {
         var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "UTC")!
+        cal.timeZone = TimeZone(identifier: "UTC") ?? .current
         let c = cal.dateComponents([.year, .month, .day], from: date)
-        return UInt64(c.year! * 10_000 + c.month! * 100 + c.day!) &* 0x2545F4914F6CDD1D
+        let year = c.year ?? 2026
+        let month = c.month ?? 1
+        let day = c.day ?? 1
+        return UInt64(year * 10_000 + month * 100 + day) &* 0x2545F4914F6CDD1D
     }
 }

@@ -47,6 +47,7 @@ struct ContentView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.97)))
             case .game(let level):
                 GameView(level: level)
+                    .id(level.id)
                     .transition(.asymmetric(
                         insertion: .move(edge: .bottom).combined(with: .opacity),
                         removal: .opacity.combined(with: .scale(scale: 0.95))

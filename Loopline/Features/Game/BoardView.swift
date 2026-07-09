@@ -121,13 +121,7 @@ struct BoardView: View {
                 ctx.stroke(p, with: .color(.white.opacity(0.25)),
                            style: StrokeStyle(lineWidth: cell * 0.2, lineCap: .round, lineJoin: .round))
             }
-            .colorEffect(ShaderLibrary.pathFlow(
-                .float(t), .float2(Float(cell * CGFloat(engine.puzzle.size)),
-                                   Float(cell * CGFloat(engine.puzzle.size)))))
-            .modifier(engine.isSolved
-                ? AnyViewModifier { $0.colorEffect(ShaderLibrary.winShimmer(
-                    .float(t), .float2(400, 400))) }
-                : AnyViewModifier { $0 })
+            .conditionalShaderEffect(engine: engine, time: t, cell: cell)
         }
         .allowsHitTesting(false)
     }
@@ -269,4 +263,25 @@ struct AnyViewModifier: ViewModifier {
         self.transform = { AnyView(transform($0)) }
     }
     func body(content: Content) -> some View { AnyView(transform(AnyView(content))) }
+}
+
+// MARK: - Safe Metal shader wrapper
+
+private extension View {
+    /// Applies Metal shader effects if available, falls back gracefully otherwise.
+    @ViewBuilder
+    func conditionalShaderEffect(engine: GameEngine, time: Double, cell: CGFloat) -> some View {
+        if #available(iOS 17.0, *), MTLCreateSystemDefaultDevice() != nil {
+            self
+                .colorEffect(ShaderLibrary.pathFlow(
+                    .float(time), .float2(Float(cell * CGFloat(engine.puzzle.size)),
+                                         Float(cell * CGFloat(engine.puzzle.size)))))
+                .modifier(engine.isSolved
+                    ? AnyViewModifier { $0.colorEffect(ShaderLibrary.winShimmer(
+                        .float(time), .float2(400, 400))) }
+                    : AnyViewModifier { $0 })
+        } else {
+            self
+        }
+    }
 }
